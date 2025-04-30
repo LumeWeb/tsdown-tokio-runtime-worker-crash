@@ -1,0 +1,191 @@
+import type { BaseCapability } from "../types/capabilities";
+
+import { Framework } from "../api/framework";
+import { DependencyGraph } from "../util/dependencyGraph";
+
+export class CapabilityManager {
+  set framework(framework: Framework) {
+    this.#_framework = framework;
+  }
+  #_framework: Framework;
+
+  #capabilities = new Map<string, BaseCapability>(); // Key by capability ID
+  #deferredPromises = new Map<
+    string,
+    {
+      promise: Promise<void>;
+      reject: (reason?: any) => void;
+      resolve: () => void;
+    }
+  >();
+  #initialized = new Set<string>(); // Track initialized capability IDs
+  #typeIndex = new Map<string, string[]>(); // Type -> Array of capability IDs
+  #typeRegistrationOrder: string[] = []; // Track type registration order
+
+  get #framework() {
+    if (!this.#_framework) {
+      throw new Error("Framework not set");
+    }
+    return this.#_framework;
+  }
+
+  // Destroy all capabilities
+  async destroyAll() {
+    const failures = new Map<string, Error>();
+    const dependencyGraph = new Map<string, string[]>();
+    const allCapabilities = Array.from(this.#capabilities.values());
+
+    // Build dependency graph same as initialization
+    for (const cap of allCapabilities) {
+      dependencyGraph.set(cap.id, [...(cap.dependencies || [])]);
+    }
+
+    // Get reverse sorted capabilities
+    const sortedCapabilities =
+      this.#resolveDependencyOrder(dependencyGraph).reverse();
+
+    // Process capabilities in reverse initialization order
+    for (const cap of sortedCapabilities) {
+      try {
+        if (!this.#initialized.has(cap.id)) continue;
+
+        await cap.destroy(this.#framework);
+        this.#initialized.delete(cap.id);
+      } catch (error) {
+        failures.set(
+          cap.id,
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    }
+
+    return failures;
+  }
+
+  // Get a capability with initialization guarantee
+  async get<T extends BaseCapability>(id: string): Promise<T | undefined> {
+    const capability = this.#capabilities.get(id);
+    
+    // If already initialized, return immediately
+    if (this.#initialized.has(id)) {
+      return capability as T;
+    }
+
+    const deferred = this.#deferredPromises.get(id);
+    if (!deferred) return undefined;
+
+    try {
+      await deferred.promise;
+      return this.#capabilities.get(id) as T;
+    } catch (error) {
+      console.error(`Capability ${id} failed initialization:`, error);
+      throw error;
+    }
+  }
+
+  // Get all capabilities of a type with initialization guarantees
+  async getAllOfType<T extends BaseCapability>(type: string): Promise<T[]> {
+    const ids = this.#typeIndex.get(type) || [];
+    const caps = await Promise.all(ids.map((id) => this.get<T>(id)));
+    return caps.filter(Boolean) as T[];
+  }
+
+  // Initialize all capabilities
+  async initializeAll() {
+    const failures = new Map<string, Error>();
+    const dependencyGraph = new Map<string, string[]>();
+    const allCapabilities = Array.from(this.#capabilities.values());
+
+    // Build dependency graph
+    for (const cap of allCapabilities) {
+      dependencyGraph.set(cap.id, [...(cap.dependencies || [])]);
+    }
+
+    // Get topologically sorted capabilities
+    const sortedCapabilities = this.#resolveDependencyOrder(dependencyGraph);
+
+    // Process capabilities in dependency-aware order
+    for (const cap of sortedCapabilities) {
+      try {
+        // Skip if already initialized
+        if (this.#initialized.has(cap.id)) {
+          console.warn(`Capability ${cap.id} already initialized`);
+          continue;
+        }
+
+        await cap.initialize(this.#framework);
+        this.#initialized.add(cap.id);
+        this.#deferredPromises.get(cap.id)?.resolve();
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.#deferredPromises.get(cap.id)?.reject(err);
+        failures.set(cap.id, err);
+      }
+    }
+
+    return failures;
+  }
+
+  // Register a new capability
+  register<T extends BaseCapability>(capability: T) {
+    if (this.#capabilities.has(capability.id)) {
+      console.warn(`Capability ${capability.id} already registered`);
+      return;
+    }
+
+    const deferred = Promise.withResolvers<void>();
+    this.#deferredPromises.set(capability.id, deferred);
+    this.#capabilities.set(capability.id, capability);
+
+    // Update type index and registration order
+    if (!this.#typeIndex.has(capability.type)) {
+      this.#typeIndex.set(capability.type, []);
+      this.#typeRegistrationOrder.push(capability.type);
+    }
+    this.#typeIndex.get(capability.type)!.push(capability.id);
+  }
+
+  #resolveDependencyOrder(
+    dependencyGraph: Map<string, string[]>,
+  ): BaseCapability[] {
+    const graph = new DependencyGraph<string>();
+
+    // First add explicit dependencies
+    for (const [id, deps] of dependencyGraph) {
+      graph.addNode(id);
+      for (const depId of deps) {
+        graph.addDependency(id, depId);
+      }
+    }
+
+    // Add implicit type-based ordering for capabilities without dependencies
+    for (const type of this.#typeRegistrationOrder) {
+      const typeCapIds = this.#typeIndex.get(type) || [];
+
+      // Create dependency chain within type based on registration order
+      for (let i = 1; i < typeCapIds.length; i++) {
+        const prevId = typeCapIds[i - 1];
+        const currId = typeCapIds[i];
+
+        // Only create implicit dependency if:
+        // - Neither capability has explicit dependencies
+        // - They haven't already been ordered by explicit deps
+        if (
+          !graph.getDependencies(currId).size &&
+          !graph.getDependencies(prevId).size &&
+          !graph.getDependents(prevId).has(currId)
+        ) {
+          graph.addDependency(currId, prevId);
+        }
+      }
+    }
+
+    // Get sorted capability IDs
+    const sortedIds = graph.topologicalSort();
+
+    // Convert IDs to capabilities while preserving order
+    return sortedIds
+      .map((id) => this.#capabilities.get(id))
+      .filter((cap): cap is BaseCapability => !!cap);
+  }
+}

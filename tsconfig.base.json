@@ -1,0 +1,28 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "bundler",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "esnext",
+    "module": "esnext",
+    "lib": ["es2020", "dom"],
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@lumeweb/portal-dashboard/*": ["libs/portal-dashboard/src/*"],
+      "@lumeweb/portal-admin/*": ["libs/portal-admin/src/*"],
+      "@lumeweb/portal-framework-plugin-core/*": [
+        "libs/portal-framework-plugin-core/src/*"
+      ]
+    }
+  },
+  "exclude": ["node_modules", "tmp"]
+}

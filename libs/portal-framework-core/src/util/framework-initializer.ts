@@ -46,6 +46,9 @@ export async function initializeFramework(
 
   try {
     if (!builder) {
+      // Create builder first to ensure it's always initialized
+      builder = new Builder(options.appName);
+
       // Initialize module federation runtime
       init({ name: appName, remotes: [] });
 
@@ -54,8 +57,6 @@ export async function initializeFramework(
         appName,
         env.VITE_PORTAL_DOMAIN,
       );
-
-      builder = new Builder(options.appName);
 
       // Register remote modules first
       await Promise.all(
@@ -66,7 +67,7 @@ export async function initializeFramework(
             // Register with MF first
             await registerRemotes([{ entry: manifestUrl, name: moduleId }]);
             // Then load and register with plugin system
-            await builder.registerRemoteModule(manifestUrl, moduleId);
+            await builder!.registerRemoteModule(manifestUrl, moduleId);
           } catch (err) {
             errors.push({
               category: "plugin",

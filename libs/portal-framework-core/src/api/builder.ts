@@ -42,7 +42,7 @@ export class Builder {
   }
 
   getPlugins(): Plugin[] {
-    return Array.from(this.#plugins.getPlugins());
+    return Array.from(this.#plugins?.getPlugins() ?? []);
   }
 
   registerPluginFactory(id: NamespacedId, factory: () => Plugin) {

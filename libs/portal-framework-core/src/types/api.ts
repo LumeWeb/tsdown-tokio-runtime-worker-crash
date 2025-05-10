@@ -12,15 +12,13 @@ export type ErrorCategory = "capability" | "feature" | "plugin" | "system";
 
 export interface FeatureDependency {
   id: NamespacedId;
-  version?: string;
 }
 export interface FrameworkFeature {
   dependencies?: FeatureDependency[];
   destroy(framework: Framework): Promise<void>;
+  enabled?: boolean;
   id: NamespacedId;
   initialize(framework: Framework): Promise<void>;
-  version: string;
-  enabled?: boolean;
 }
 
 export interface InitializationResult {

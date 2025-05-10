@@ -19,7 +19,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
   const hasCategories = "errors" in error && Array.isArray(error.errors);
 
   const groupedErrors = hasCategories
-    ? (error as InitializationResult).errors.reduce(
+    ? error.errors?.reduce(
         (groups, err) => {
           const category = err.category;
           if (!groups[category]) {

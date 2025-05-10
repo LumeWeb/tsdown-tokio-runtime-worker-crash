@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 
 import { useFramework } from "../contexts/framework";
-import { createRemoteComponentLoader, defaultRemoteOptions } from "../plugins/remoteComponentLoader";
+import {
+  createRemoteComponentLoader,
+  defaultRemoteOptions,
+} from "../plugins/remoteComponentLoader";
 
 export interface WidgetAreaProps {
   widgetAreaId: string;
@@ -12,6 +15,10 @@ export function WidgetArea({ widgetAreaId }: WidgetAreaProps) {
   const [widgets, setWidgets] = useState<React.ComponentType[]>([]);
 
   useEffect(() => {
+    if (!framework) {
+      return;
+    }
+
     const registrations = framework.getWidgetRegistrations(widgetAreaId);
     const loadedWidgets = registrations.map((reg) => {
       return createRemoteComponentLoader(
@@ -20,7 +27,7 @@ export function WidgetArea({ widgetAreaId }: WidgetAreaProps) {
           pluginId: reg.pluginId,
         },
         framework,
-        defaultRemoteOptions
+        defaultRemoteOptions,
       );
     });
     setWidgets(loadedWidgets);

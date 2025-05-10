@@ -7,22 +7,16 @@ export interface BaseCapability<
   TType extends string = string,
   TID extends string = string,
 > {
-  destroy(framework: Framework): Promise<void>;
-  readonly id: TID;
-
-  initialize(framework: Framework): Promise<void>;
-  readonly metadata: {
-    description: string;
-    name: string;
-    provider: string;
-  };
-  readonly status: "active" | "error" | "inactive";
-  readonly type: TType;
-  readonly version: string;
   /**
    * Array of capability IDs that must be initialized before this one
    */
   dependencies?: string[];
+  destroy(framework: Framework): Promise<void>;
+
+  readonly id: TID;
+  initialize(framework: Framework): Promise<void>;
+  readonly status: "active" | "error" | "inactive";
+  readonly type: TType;
 }
 
 export interface RefineConfigCapability

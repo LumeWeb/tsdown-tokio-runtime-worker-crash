@@ -10,6 +10,7 @@ export class CapabilityManager {
   #_framework: Framework;
 
   #capabilities = new Map<string, BaseCapability>(); // Key by capability ID
+  #capabilityToPlugin = new Map<string, string>(); // capabilityId -> pluginId
   #deferredPromises = new Map<
     string,
     {
@@ -65,7 +66,7 @@ export class CapabilityManager {
   // Get a capability with initialization guarantee
   async get<T extends BaseCapability>(id: string): Promise<T | undefined> {
     const capability = this.#capabilities.get(id);
-    
+
     // If already initialized, return immediately
     if (this.#initialized.has(id)) {
       return capability as T;
@@ -87,7 +88,39 @@ export class CapabilityManager {
   async getAllOfType<T extends BaseCapability>(type: string): Promise<T[]> {
     const ids = this.#typeIndex.get(type) || [];
     const caps = await Promise.all(ids.map((id) => this.get<T>(id)));
-    return caps.filter(Boolean) as T[];
+    const filteredCaps = caps.filter(Boolean) as T[];
+
+    // Get plugin dependency order
+    const pluginOrder = this.#framework
+      .getPluginManager()
+      .getInitializationOrder();
+    const pluginOrderMap = new Map<string, number>(
+      pluginOrder.map((id, index) => [id, index]),
+    );
+
+    // Create map of capability ID to original registration index
+    const originalIndices = new Map(
+      filteredCaps.map((cap, idx) => [cap.id, idx]),
+    );
+
+    // Sort by plugin dependency order while preserving registration order within plugins
+    return filteredCaps.sort((a, b) => {
+      const aPlugin = this.#capabilityToPlugin.get(a.id) || "";
+      const bPlugin = this.#capabilityToPlugin.get(b.id) || "";
+      const aIndex = pluginOrderMap.get(aPlugin) ?? pluginOrder.length;
+      const bIndex = pluginOrderMap.get(bPlugin) ?? pluginOrder.length;
+
+      // First sort by plugin initialization order
+      const diff = aIndex - bIndex;
+      if (diff !== 0) {
+        return diff;
+      }
+
+      // For capabilities from the same plugin, preserve original registration order
+      return (
+        (originalIndices.get(a.id) ?? 0) - (originalIndices.get(b.id) ?? 0)
+      );
+    });
   }
 
   // Initialize all capabilities
@@ -127,11 +160,13 @@ export class CapabilityManager {
   }
 
   // Register a new capability
-  register<T extends BaseCapability>(capability: T) {
+  register<T extends BaseCapability>(capability: T, pluginId: string) {
     if (this.#capabilities.has(capability.id)) {
       console.warn(`Capability ${capability.id} already registered`);
       return;
     }
+
+    this.#capabilityToPlugin.set(capability.id, pluginId);
 
     const deferred = Promise.withResolvers<void>();
     this.#deferredPromises.set(capability.id, deferred);

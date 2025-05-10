@@ -65,7 +65,7 @@ export class PluginManager {
     this.#pluginStates.delete(id);
   }
   async destroyPlugins() {
-    const order = this.#getInitializationOrder().reverse();
+    const order = this.getInitializationOrder().reverse();
     for (const pluginId of order) {
       await this.destroyPlugin(pluginId);
     }
@@ -186,7 +186,7 @@ export class PluginManager {
 
   async initializePlugins() {
     // Filter initialization order to only enabled plugins
-    const order = this.#getInitializationOrder().filter((pluginId) =>
+    const order = this.getInitializationOrder().filter((pluginId) =>
       this.framework.isPluginEnabled(pluginId),
     );
 
@@ -410,7 +410,7 @@ export class PluginManager {
     }
   }
 
-  #getInitializationOrder(): NamespacedId[] {
+  getInitializationOrder(): NamespacedId[] {
     const graph = new DependencyGraph<NamespacedId>();
 
     // Add all plugins to the graph

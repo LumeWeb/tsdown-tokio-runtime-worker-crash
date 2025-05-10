@@ -31,7 +31,7 @@ class ContextBridgeStore {
     return this.values.get(id);
   }
 
-  register<T>(context: React.Context<T>, name: string = null): symbol {
+  register<T>(context: React.Context<T>, name: string = ""): symbol {
     const id = Symbol();
     this.contextMap.set(id, context);
     this.contextNameMap.set(id, name);
@@ -81,11 +81,11 @@ interface RemoteContextConsumerProps<T = any> {
 export function ContextBridgeProvider({
   children,
   contextId,
-  name = null,
+  name,
 }: {
   children: React.ReactNode;
   contextId: symbol;
-  name: string;
+  name?: string;
 }) {
   const context = store.getContext(contextId);
   // Always call hooks at the top level
@@ -119,7 +119,7 @@ export function HostContextBridge({
     (acc, contextId) => (
       <ContextBridgeProvider
         contextId={contextId}
-        name={store.getName(contextId)}>
+        name={store.getName(contextId) || ""}>
         {acc}
       </ContextBridgeProvider>
     ),
@@ -130,7 +130,7 @@ export function HostContextBridge({
 // Helper to register a context for bridging
 export function registerBridgedContext<T>(
   context: React.Context<T>,
-  name = null,
+  name?: string,
 ): symbol {
   return store.register(context, name);
 }
@@ -139,7 +139,7 @@ export function registerBridgedContext<T>(
 export function RemoteContextBridge({
   children,
   contextId,
-  name = null,
+  name = "",
 }: {
   children: React.ReactNode;
   contextId: symbol;

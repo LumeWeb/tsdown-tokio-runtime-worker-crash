@@ -52,13 +52,21 @@ export class Framework {
 
   async getFeature<T extends FrameworkFeature>(
     id: NamespacedId,
-  ): Promise<T | undefined> {
+  ): Promise<T> {
     validateNamespacedId(id);
-    return this.#plugins.getFeatureWithFallback<T>(id);
+    const feature = await this.#plugins.getFeatureWithFallback<T>(id);
+    if (!feature) {
+      throw new Error(`Feature ${id} not found`);
+    }
+    return feature;
   }
 
   getPlugins() {
     return this.#plugins.getPlugins();
+  }
+
+  getPluginManager(): PluginManager {
+    return this.#plugins;
   }
 
   /**
@@ -118,9 +126,9 @@ export class Framework {
           id: pluginId,
         });
       } else {
-        // Register capabilities from the plugin
+        // Register capabilities from the plugin with plugin ID
         plugin.capabilities?.forEach((capability) => {
-          this.#capabilities.register(capability);
+          this.#capabilities.register(capability, plugin.id);
         });
       }
     }
@@ -177,8 +185,8 @@ export class Framework {
     return feature;
   }
 
-  registerCapability(capability: BaseCapability): void {
-    this.#capabilities.register(capability);
+  registerCapability(capability: BaseCapability, pluginId: string): void {
+    this.#capabilities.register(capability, pluginId);
   }
 
   resolvePluginModule(pluginId: NamespacedId, exportName: string): string {
